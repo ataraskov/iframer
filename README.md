@@ -47,6 +47,39 @@ To embed it in your own app, just point an iframe at:
 <iframe src="http://localhost:8080/proxy?url=https://glosbe.com/sr/ru/dog"></iframe>
 ```
 
+## Ad filtering
+
+DNS-level ad blocking (Pi-hole, AdGuard Home, NextDNS, etc.) doesn't work
+against a proxied iframe: ad/tracker domains are resolved and fetched by
+*this container*, not by the browser or the user's own DNS, and
+`rewriteUrl` in `src/rewrite.js` collapses every third-party URL —
+including ad domains — down to `/proxy?url=...` before the browser ever
+sees it. A DNS blackhole never gets a hostname to block.
+
+So filtering runs inside the proxy instead, via `src/adblock.js`, using
+[`@ghostery/adblocker`](https://github.com/ghostery/adblocker) loaded with
+the same EasyList + EasyPrivacy filter lists uBlock Origin uses:
+
+- **Network filtering**: `rewriteHtml` drops `<script>`/`<img>`/`<iframe>`/
+  etc. tags (and clears `<a href>`/`<form action>`) whose resolved URL
+  matches a known ad/tracker filter, instead of proxying them.
+- A second check in the `/proxy` route itself blocks matching requests
+  even if they reach the proxy some other way (defense in depth).
+- **Cosmetic filtering**: a `<style>` block of EasyList's hide-selectors
+  for the page's domain is injected into `<head>`, to hide leftover ad
+  containers that weren't a blockable network request.
+
+The compiled filter engine is cached to disk (`ADBLOCK_CACHE_PATH`, a
+Docker volume by default — see `docker-compose.yml`) so lists aren't
+re-fetched on every restart.
+
+**Known gap**: JavaScript on the proxied page that dynamically builds and
+calls `fetch()`/`XHR` against a third-party URL at runtime (rather than a
+static `src`/`href` in the HTML) never goes through `/proxy` at all — the
+browser would attempt to hit that URL directly. This is a limitation of
+any rewrite-based proxy, not specific to the filtering above; most ad
+delivery still goes through the static tags this proxy already rewrites.
+
 ## Configuration
 
 Set via environment variables (see `docker-compose.yml`):
@@ -57,6 +90,8 @@ Set via environment variables (see `docker-compose.yml`):
 | `ALLOWED_HOSTS`       | `glosbe.com`   | Comma-separated host allowlist. Subdomains match automatically.    |
 | `REQUEST_TIMEOUT_MS`  | `15000`        | Upstream fetch timeout.                                            |
 | `UPSTREAM_USER_AGENT` | a default UA   | User-Agent sent to the upstream site.                              |
+| `ADBLOCK_ENABLED`     | `true`         | Set to `false` to disable ad/tracker filtering entirely.           |
+| `ADBLOCK_CACHE_PATH`  | `.cache/adblock-engine.bin` | Where the compiled EasyList/EasyPrivacy engine is cached. |
 
 To also proxy other sites, add them to `ALLOWED_HOSTS`, e.g.
 `ALLOWED_HOSTS=glosbe.com,en.wiktionary.org`.
@@ -84,6 +119,7 @@ non-http(s) targets outright, even if a hostname resolves there.
 src/server.js     Express app: /proxy route, header handling, allowlist enforcement
 src/rewrite.js     HTML/CSS URL rewriting so navigation stays inside the proxy
 src/allowlist.js   Host allowlist + SSRF guardrails
+src/adblock.js     EasyList/EasyPrivacy-based ad/tracker filtering
 public/index.html  Demo page embedding the Glosbe dictionary
 Dockerfile
 docker-compose.yml

@@ -2,6 +2,7 @@ const express = require("express");
 const path = require("path");
 const { parseAllowedHosts, isAllowedHost, isSafeTargetUrl } = require("./allowlist");
 const { rewriteHtml, rewriteCssText } = require("./rewrite");
+const { initAdblock, isBlockedUrl } = require("./adblock");
 
 const PORT = Number(process.env.PORT) || 8080;
 const ALLOWED_HOSTS = parseAllowedHosts(process.env.ALLOWED_HOSTS || "glosbe.com");
@@ -23,6 +24,22 @@ const STRIPPED_RESPONSE_HEADERS = new Set([
   "set-cookie",
   "strict-transport-security",
 ]);
+
+const SEC_FETCH_DEST_TO_TYPE = {
+  document: "other",
+  iframe: "sub_frame",
+  image: "image",
+  script: "script",
+  style: "stylesheet",
+  audio: "media",
+  video: "media",
+  font: "font",
+  empty: "xmlhttprequest",
+};
+
+function guessResourceType(req) {
+  return SEC_FETCH_DEST_TO_TYPE[req.headers["sec-fetch-dest"]] || "other";
+}
 
 const app = express();
 app.disable("x-powered-by");
@@ -52,6 +69,21 @@ app.get("/proxy", async (req, res) => {
         `Host '${target.hostname}' is not in ALLOWED_HOSTS. ` +
           `Allowed: ${ALLOWED_HOSTS.join(", ") || "(none configured)"}`
       );
+  }
+
+  // Defense in depth: catches requests that reach /proxy directly (e.g. an
+  // already-proxied ad URL a page's own script re-requested) even though
+  // rewriteHtml already strips known ad/tracker references from the HTML.
+  let sourceUrl;
+  try {
+    sourceUrl = req.headers.referer
+      ? new URL(req.headers.referer).searchParams.get("url") || undefined
+      : undefined;
+  } catch {
+    sourceUrl = undefined;
+  }
+  if (isBlockedUrl(target.toString(), { sourceUrl, type: guessResourceType(req) })) {
+    return res.status(204).end();
   }
 
   const controller = new AbortController();
@@ -108,7 +140,9 @@ app.get("/proxy", async (req, res) => {
 
 app.use(express.static(path.join(__dirname, "..", "public")));
 
-app.listen(PORT, () => {
-  console.log(`iframer proxy listening on :${PORT}`);
-  console.log(`Allowed hosts: ${ALLOWED_HOSTS.join(", ") || "(none configured)"}`);
+initAdblock().finally(() => {
+  app.listen(PORT, () => {
+    console.log(`iframer proxy listening on :${PORT}`);
+    console.log(`Allowed hosts: ${ALLOWED_HOSTS.join(", ") || "(none configured)"}`);
+  });
 });

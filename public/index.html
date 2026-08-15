@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>iframer — Glosbe dictionary demo</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 1rem; background: #111; color: #eee; }
+    .bar { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
+    input, select, button {
+      font-size: 1rem; padding: 0.4rem 0.6rem; border-radius: 6px;
+      border: 1px solid #444; background: #1c1c1c; color: #eee;
+    }
+    button { cursor: pointer; }
+    iframe { width: 100%; height: 80vh; border: 1px solid #333; border-radius: 8px; background: #fff; }
+  </style>
+</head>
+<body>
+  <div class="bar">
+    <select id="from">
+      <option value="sr">sr</option>
+      <option value="en">en</option>
+      <option value="ru">ru</option>
+    </select>
+    <span>&rarr;</span>
+    <select id="to">
+      <option value="ru">ru</option>
+      <option value="en">en</option>
+      <option value="sr">sr</option>
+    </select>
+    <input id="word" placeholder="word" value="dog" />
+    <button id="go">Look up</button>
+  </div>
+  <iframe id="frame" title="Glosbe dictionary"></iframe>
+
+  <script>
+    const frame = document.getElementById("frame");
+    const wordInput = document.getElementById("word");
+    const fromSel = document.getElementById("from");
+    const toSel = document.getElementById("to");
+
+    function load() {
+      const from = fromSel.value;
+      const to = toSel.value;
+      const word = encodeURIComponent(wordInput.value.trim() || "dog");
+      const target = `https://glosbe.com/${from}/${to}/${word}`;
+      frame.src = `/proxy?url=${encodeURIComponent(target)}`;
+    }
+
+    document.getElementById("go").addEventListener("click", load);
+    wordInput.addEventListener("keydown", (e) => { if (e.key === "Enter") load(); });
+    load();
+  </script>
+</body>
+</html>

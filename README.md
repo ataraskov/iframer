@@ -47,6 +47,16 @@ To embed it in your own app, just point an iframe at:
 <iframe src="http://localhost:8080/proxy?url=https://glosbe.com/sr/ru/dog"></iframe>
 ```
 
+### Using a published image
+
+`.github/workflows/docker-release.yml` builds and publishes multi-arch
+(`linux/amd64` + `linux/arm64`) images to GHCR on every release, tagged
+both with the version (e.g. `v0.1.3`) and `latest`:
+
+```bash
+docker run -p 8080:8080 -e ALLOWED_HOSTS=glosbe.com ghcr.io/ataraskov/iframer:latest
+```
+
 ## Ad filtering
 
 DNS-level ad blocking (Pi-hole, AdGuard Home, NextDNS, etc.) doesn't work

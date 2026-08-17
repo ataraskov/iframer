@@ -15,6 +15,7 @@ function hostMatches(hostname, allowed) {
 }
 
 function isAllowedHost(hostname, allowedHosts) {
+  if (allowedHosts.includes("*")) return true;
   return allowedHosts.some((allowed) => hostMatches(hostname, allowed));
 }
 

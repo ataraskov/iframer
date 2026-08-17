@@ -97,7 +97,7 @@ Set via environment variables (see `docker-compose.yml`):
 | Variable              | Default        | Purpose                                                            |
 |-----------------------|----------------|---------------------------------------------------------------------|
 | `PORT`                | `8080`         | Port the server listens on.                                        |
-| `ALLOWED_HOSTS`       | `glosbe.com`   | Comma-separated host allowlist. Subdomains match automatically.    |
+| `ALLOWED_HOSTS`       | `glosbe.com`   | Comma-separated host allowlist. Subdomains match automatically. `*` allows any host. |
 | `REQUEST_TIMEOUT_MS`  | `15000`        | Upstream fetch timeout.                                            |
 | `UPSTREAM_USER_AGENT` | a default UA   | User-Agent sent to the upstream site.                              |
 | `ADBLOCK_ENABLED`     | `true`         | Set to `false` to disable ad/tracker filtering entirely.           |
@@ -109,8 +109,12 @@ To also proxy other sites, add them to `ALLOWED_HOSTS`, e.g.
 **`ALLOWED_HOSTS` is a security control, not just config** — without it
 this would be an open proxy that anyone on your network could point at
 arbitrary internal or external URLs (SSRF). Only add hosts you actually
-intend to embed. `src/allowlist.js` also rejects loopback/private-IP and
-non-http(s) targets outright, even if a hostname resolves there.
+intend to embed. Setting `ALLOWED_HOSTS=*` disables the allowlist
+entirely and turns this into a general-purpose open proxy — only do
+that if you understand and accept that trade-off (e.g. it's not exposed
+beyond a trusted network). Even with `*`, `src/allowlist.js` still
+rejects loopback/private-IP and non-http(s) targets outright, so it
+can't be used to reach your own internal network.
 
 ## Known limitations (MVP scope)
 
